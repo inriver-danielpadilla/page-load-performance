@@ -1,0 +1,24 @@
+{
+  "name": "page-load-performance",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Page load performance comparison: inriver PIM app (New Tech Stack) vs legacy portal2",
+  "type": "commonjs",
+  "scripts": {
+    "perf": "playwright test --project=perf",
+    "perf:test": "node --test src/pageLoadComparison.test.mjs src/pageLoadMetrics.test.mjs .github/skills/page-load-performance-comparison/scripts/create-legacy-page-urls.test.mjs",
+    "perf:env-test": "cross-env ENV_FILE=.env.test playwright test --project=perf",
+    "perf:compare": "node src/pageLoadComparison.mjs",
+    "perf:compare:env-test": "cross-env ENV_FILE=.env.test node src/pageLoadComparison.mjs",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.4.1",
+    "cross-env": "10.1.0",
+    "dotenv": "17.4.2",
+    "playwright": "1.63.0",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "pnpm@11.0.8"
+}

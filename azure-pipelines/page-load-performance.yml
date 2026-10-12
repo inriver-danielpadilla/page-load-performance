@@ -1,0 +1,106 @@
+# Page load performance: app-{stack}-{region} (New Tech Stack) vs portal2-{stack}-{region} (legacy).
+# Runs manually with parameters, or nightly with the defaults.
+# Requires variable group "pim-autotest-perf" with:
+#   TEST_USERNAME            - test user email
+#   TEST_PASSWORD (secret)   - test user password
+trigger: none
+pr: none
+
+schedules:
+  - cron: '0 2 * * *'
+    displayName: Nightly page load performance
+    branches:
+      include:
+        - main
+    always: true
+
+parameters:
+  - name: configurationName
+    displayName: TEST_CONFIGURATION_NAME (<stack>-<region>-<customer>-<environment>)
+    type: string
+    default: dev1a-euw-autotestuideveuw-autotestuiodl
+  - name: runs
+    displayName: Measured loads per page and site
+    type: number
+    default: 10
+  - name: pages
+    displayName: Pages ("all" or comma-separated ids, e.g. enrich,dashboard)
+    type: string
+    default: all
+
+variables:
+  - group: pim-autotest-perf
+  - name: CI
+    value: 'true'
+
+pool:
+  vmImage: ubuntu-latest
+
+jobs:
+  - job: PageLoadPerformance
+    displayName: Page load performance (${{ parameters.configurationName }})
+    timeoutInMinutes: 360
+    steps:
+      - checkout: self
+
+      - task: NodeTool@0
+        displayName: Use Node 24.x
+        inputs:
+          versionSpec: 24.x
+
+      - script: npm install -g pnpm@11.0.8
+        displayName: Install pnpm
+
+      - script: pnpm install --frozen-lockfile
+        displayName: Install dependencies
+
+      - script: pnpm exec playwright install --with-deps chromium
+        displayName: Install Playwright Chromium
+
+      - script: |
+          set -e
+          {
+            echo "TEST_CONFIGURATION_NAME=$CONFIGURATION_NAME"
+            echo "TEST_USERNAME=$PERF_USERNAME"
+            echo "TEST_PASSWORD=$PERF_PASSWORD"
+            echo "PERF_RUNS=$PERF_RUNS_PARAM"
+            echo "PERF_PAGES=$PERF_PAGES_PARAM"
+            echo "PERF_OUTPUT_DIR=perf-results"
+          } > .env
+        displayName: Write .env
+        env:
+          CONFIGURATION_NAME: ${{ parameters.configurationName }}
+          PERF_USERNAME: $(TEST_USERNAME)
+          PERF_PASSWORD: $(TEST_PASSWORD)
+          PERF_RUNS_PARAM: ${{ parameters.runs }}
+          PERF_PAGES_PARAM: ${{ parameters.pages }}
+
+      - script: pnpm run perf
+        displayName: Run page load performance comparison
+
+      - script: rm -f .env
+        displayName: Remove .env
+        condition: always()
+
+      - task: PublishTestResults@2
+        displayName: Publish JUnit results
+        condition: always()
+        inputs:
+          testResultsFormat: JUnit
+          testResultsFiles: test-results/results.xml
+          testRunTitle: Page load performance (${{ parameters.configurationName }})
+          failTaskOnFailedTests: false
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish performance report
+        condition: always()
+        inputs:
+          targetPath: perf-results
+          artifact: page-load-performance-$(System.JobAttempt)
+
+      - task: PublishPipelineArtifact@1
+        displayName: Publish Playwright report
+        condition: always()
+        inputs:
+          targetPath: playwright-report
+          artifact: playwright-report-$(System.JobAttempt)
